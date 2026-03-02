@@ -69,19 +69,19 @@ export function NutritionLabel({
           {fssaiCompliant === true && (
             <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <Shield className="h-3.5 w-3.5" />
-              FSSAI Compliant
+              FSSAI: Yes
             </div>
           )}
           {fssaiCompliant === false && (
             <div className="flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive">
               <ShieldAlert className="h-3.5 w-3.5" />
-              Non-Compliant
+              FSSAI: No
             </div>
           )}
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex items-center gap-1.5 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-100 backdrop-blur-md transition-colors hover:border-white/50 hover:bg-white/20 hover:text-white"
         >
           <Download className="h-3.5 w-3.5" />
           Export PNG

@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, User as UserIcon, Weight, Calendar } from "lucide-react"
+import { Loader2, User as UserIcon, Weight, Calendar, Download, FileText } from "lucide-react"
+import { motion } from "framer-motion"
 import { useAuth } from "@/hooks/use-auth"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { GoalSelector } from "@/components/goal-selector"
@@ -37,9 +38,30 @@ interface ImprovedRecipe {
   recommendedFoods: { name: string; reason: string }[]
 }
 
+const dashboardContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+}
+
+const dashboardItemVariants = {
+  hidden: { opacity: 0, y: 16, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35 },
+  },
+}
+
 export default function UserDashboard() {
   const router = useRouter()
   const { user, isLoading, updateProfile } = useAuth()
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const [analyzing, setAnalyzing] = useState(false)
   const [checkingGoal, setCheckingGoal] = useState(false)
@@ -232,6 +254,67 @@ export default function UserDashboard() {
     }
   }
 
+  const handleExportImage = async () => {
+    if (!reportRef.current || !recipeData) return
+
+    try {
+      const { default: html2canvas } = await import("html2canvas-pro")
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+      })
+
+      const link = document.createElement("a")
+      link.download = `${recipeData.name.replace(/\s+/g, "-").toLowerCase()}-analysis-report.png`
+      link.href = canvas.toDataURL("image/png")
+      link.click()
+    } catch {
+      toast.error("Failed to export image")
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (!reportRef.current || !recipeData) return
+
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas-pro"),
+        import("jspdf"),
+      ])
+
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+      })
+
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("p", "mm", "a4")
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 8
+      const usableWidth = pageWidth - margin * 2
+      const usableHeight = pageHeight - margin * 2
+      const imgHeight = (canvas.height * usableWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = margin
+
+      pdf.addImage(imgData, "PNG", margin, position, usableWidth, imgHeight)
+      heightLeft -= usableHeight
+
+      while (heightLeft > 0) {
+        pdf.addPage()
+        position = margin - (imgHeight - heightLeft)
+        pdf.addImage(imgData, "PNG", margin, position, usableWidth, imgHeight)
+        heightLeft -= usableHeight
+      }
+
+      pdf.save(`${recipeData.name.replace(/\s+/g, "-").toLowerCase()}-analysis-report.pdf`)
+    } catch {
+      toast.error("Failed to export PDF")
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -256,63 +339,74 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-black via-zinc-900 to-slate-800">
+      <div className="pointer-events-none absolute -top-20 -left-20 h-72 w-72 rounded-full bg-slate-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/3 -right-20 h-80 w-80 rounded-full bg-zinc-200/15 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-gray-300/10 blur-3xl" />
       <DashboardHeader />
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <motion.main
+        className="relative z-10 mx-auto max-w-6xl px-4 py-8"
+        initial="hidden"
+        animate="visible"
+        variants={dashboardContainerVariants}
+      >
+        <motion.div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between" variants={dashboardItemVariants}>
           <div>
             <h1
-              className="text-3xl font-bold text-foreground"
+              className="text-3xl font-bold text-slate-100"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Your Dashboard
             </h1>
-            <p className="mt-1 text-muted-foreground">
+            <p className="mt-1 text-slate-300">
               Analyze recipes and get personalized dietary guidance.
             </p>
           </div>
-          <div className="flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-2">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4 rounded-lg border border-white/20 bg-white/10 px-4 py-2 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 text-sm text-slate-300">
               <Calendar className="h-3.5 w-3.5" />
               <span>Age: {user.profile.age}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-sm text-slate-300">
               <Weight className="h-3.5 w-3.5" />
               <span>{user.profile.weight} kg</span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-sm text-slate-300">
               <UserIcon className="h-3.5 w-3.5" />
               <span className="capitalize">{currentGoal.replace("_", " ")}</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="mb-8 rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold text-card-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+        <motion.div className="mb-8 rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-md" variants={dashboardItemVariants}>
+          <h2 className="mb-4 text-lg font-semibold text-slate-100" style={{ fontFamily: "var(--font-heading)" }}>
             Your Goal
           </h2>
           <GoalSelector selected={currentGoal} onSelect={handleGoalChange} />
-        </div>
+        </motion.div>
 
-        <div className="grid gap-8 lg:grid-cols-2">
+        <motion.div className="grid gap-8 lg:grid-cols-2" variants={dashboardItemVariants}>
           <div className="flex flex-col gap-6">
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h2 className="mb-6 text-lg font-semibold text-card-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+            <motion.div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-md" variants={dashboardItemVariants}>
+              <h2 className="mb-6 text-lg font-semibold text-slate-100" style={{ fontFamily: "var(--font-heading)" }}>
                 Recipe Details
               </h2>
-              <RecipeInput onSubmit={handleAnalyze} loading={analyzing} />
-            </div>
+              <RecipeInput
+                onSubmit={handleAnalyze}
+                loading={analyzing}
+              />
+            </motion.div>
           </div>
 
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6" ref={reportRef}>
             {(analyzing || nutrition) && (
-              <div className="rounded-xl border border-border bg-card p-6">
-                <h2 className="mb-6 text-lg font-semibold text-card-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+              <motion.div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-md" variants={dashboardItemVariants}>
+                <h2 className="mb-6 text-lg font-semibold text-slate-100" style={{ fontFamily: "var(--font-heading)" }}>
                   Nutrition Analysis
                 </h2>
 
                 {analyzing && !nutrition && (
-                  <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-300">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="text-sm">Analyzing nutrition...</p>
                   </div>
@@ -327,24 +421,26 @@ export default function UserDashboard() {
                     fssaiNotes={nutrition.fssaiNotes}
                   />
                 )}
-              </div>
+              </motion.div>
             )}
 
             {nutrition && recipeData && (
-              <NutritionCharts
+              <motion.div variants={dashboardItemVariants}>
+                <NutritionCharts
                 nutrition={nutrition}
                 servingSize={recipeData.servingSize}
-              />
+                />
+              </motion.div>
             )}
 
             {(checkingGoal || goalAnalysis) && (
-              <div className="rounded-xl border border-border bg-card p-6">
-                <h2 className="mb-6 text-lg font-semibold text-card-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+              <motion.div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-md" variants={dashboardItemVariants}>
+                <h2 className="mb-6 text-lg font-semibold text-slate-100" style={{ fontFamily: "var(--font-heading)" }}>
                   Goal Compatibility
                 </h2>
 
                 {checkingGoal && !goalAnalysis && (
-                  <div className="flex flex-col items-center justify-center gap-3 py-10 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center gap-3 py-10 text-slate-300">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     <p className="text-sm">Checking goal compatibility...</p>
                   </div>
@@ -358,28 +454,46 @@ export default function UserDashboard() {
                     improving={improving}
                   />
                 )}
-              </div>
+              </motion.div>
             )}
 
-            {nutrition && (
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex h-10 items-center justify-center gap-2 rounded-lg border border-primary bg-primary/5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Recipe"
-                )}
-              </button>
+            {nutrition && recipeData && (
+              <motion.div className="grid gap-3 sm:grid-cols-3" variants={dashboardItemVariants}>
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  className="flex h-10 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-medium text-slate-100 backdrop-blur-md transition-colors hover:border-white/35 hover:bg-white/15 hover:text-white"
+                >
+                  <FileText className="h-4 w-4" />
+                  Export PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportImage}
+                  className="flex h-10 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-medium text-slate-100 backdrop-blur-md transition-colors hover:border-white/35 hover:bg-white/15 hover:text-white"
+                >
+                  <Download className="h-4 w-4" />
+                  Export Image
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex h-10 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 text-sm font-medium text-slate-100 backdrop-blur-md transition-colors hover:border-white/35 hover:bg-white/15 hover:text-white disabled:opacity-50"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Recipe"
+                  )}
+                </button>
+              </motion.div>
             )}
           </div>
-        </div>
-      </main>
+        </motion.div>
+      </motion.main>
     </div>
   )
 }

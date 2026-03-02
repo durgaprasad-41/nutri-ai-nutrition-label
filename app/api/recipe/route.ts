@@ -3,6 +3,24 @@ import { connectToDatabase } from "@/lib/mongodb"
 import { getAuthUser } from "@/lib/auth"
 import Recipe from "@/models/Recipe"
 
+const HISTORY_RETENTION_DAYS = 30
+
+type RecipeRequestBody = {
+  name: string
+  servingSize?: number
+  ingredients: unknown[]
+  nutrition?: unknown
+  fssaiCompliant?: boolean | null
+  goalAnalysis?: unknown
+  improvedRecipe?: unknown
+}
+
+function getRetentionCutoffDate() {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - HISTORY_RETENTION_DAYS)
+  return cutoff
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthUser()
@@ -15,7 +33,8 @@ export async function POST(req: NextRequest) {
 
     await connectToDatabase()
 
-    const body = await req.json()
+    const body = (await req.json()) as RecipeRequestBody
+    const cutoffDate = getRetentionCutoffDate()
 
     const recipe = await Recipe.create({
       userId: auth.userId,
@@ -26,6 +45,12 @@ export async function POST(req: NextRequest) {
       fssaiCompliant: body.fssaiCompliant ?? null,
       goalAnalysis: body.goalAnalysis || null,
       improvedRecipe: body.improvedRecipe || null,
+    })
+
+    // Enforce rolling 30-day history retention per user.
+    await Recipe.deleteMany({
+      userId: auth.userId,
+      createdAt: { $lt: cutoffDate },
     })
 
     return NextResponse.json({ recipe }, { status: 201 })
@@ -49,8 +74,18 @@ export async function GET() {
     }
 
     await connectToDatabase()
+    const cutoffDate = getRetentionCutoffDate()
 
-    const recipes = await Recipe.find({ userId: auth.userId })
+    // Clean up old history before fetching.
+    await Recipe.deleteMany({
+      userId: auth.userId,
+      createdAt: { $lt: cutoffDate },
+    })
+
+    const recipes = await Recipe.find({
+      userId: auth.userId,
+      createdAt: { $gte: cutoffDate },
+    })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean()

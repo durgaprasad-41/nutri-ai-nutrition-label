@@ -1,0 +1,12 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff8e9"/>
+      <stop offset="100%" stop-color="#ffe8c4"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#bg)"/>
+  <ellipse cx="400" cy="260" rx="220" ry="130" fill="#fff" stroke="#d0a466" stroke-width="8"/>
+  <text x="400" y="80" text-anchor="middle" font-size="44" fill="#8b6129" font-family="Arial, sans-serif" font-weight="700">Vegetable Upma</text>
+  <text x="400" y="275" text-anchor="middle" font-size="34" fill="#745832" font-family="Arial, sans-serif">Balanced breakfast</text>
+</svg>

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText } from "ai"
-import { google } from "@ai-sdk/google"
-import { calculateNutrition } from "@/lib/nutrition-db"
 import { z } from "zod"
+import { connectToDatabase } from "@/lib/mongodb"
+import { calculateRecipeNutritionFromFssai } from "@/lib/fssai-nutrition"
 
 const nutritionSchema = z.object({
   calories: z.number(),
@@ -13,6 +12,9 @@ const nutritionSchema = z.object({
   sugar: z.number(),
   sodium: z.number(),
   fiber: z.number(),
+  validInput: z.boolean(),
+  invalidIngredients: z.array(z.string()),
+  validationMessage: z.string(),
   fssaiCompliant: z.boolean(),
   fssaiNotes: z.string(),
 })
@@ -20,51 +22,64 @@ const nutritionSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { ingredients, servingSize } = body
-    if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    const { name, servingSize, ingredients } = body
+
+    if (!ingredients || ingredients.length === 0) {
       return NextResponse.json(
-        { error: "At least one ingredient is required" },
+        { error: "No ingredients provided" },
         { status: 400 }
       )
     }
 
-    try {
-      const ingredientList = ingredients
-        .map(
-          (i: { name: string; quantity: number; unit: string }) =>
-            `${i.name}: ${i.quantity} ${i.unit}`
-        )
-        .join("\n")
+    console.log("Analyzing recipe:", { name, servingSize, ingredients })
 
-      // AI-based nutrition calculation
-      const { output } = await generateText({
-        model: google("gemini-2.0-flash"),
-        maxRetries: 2,
-        output: Output.object({ schema: nutritionSchema }),
-        system: `
-You are a certified nutritionist and food scientist.
-Calculate accurate nutrition values per 100g serving.
-Return ONLY valid JSON.
-`,
-        prompt: `
-Calculate nutrition per 100g serving for:
+    // DB-first: use FSSAI values from MongoDB; if missing, fallback to key-based local values.
+    await connectToDatabase()
+    const nutritionResult = await calculateRecipeNutritionFromFssai(ingredients)
+    
+    console.log("Local nutrition calculation:", nutritionResult)
 
-${ingredientList}
-`,
-      })
+    const hasValidRecipeName = typeof name === "string" && name.trim().length > 0
+    const hasUnknownIngredients = nutritionResult.unknownIngredients.length > 0
+    const validInput = hasValidRecipeName && !hasUnknownIngredients
+    const validationMessage = validInput
+      ? "Recipe input is valid."
+      : hasUnknownIngredients
+        ? `Invalid ingredient(s): ${nutritionResult.unknownIngredients.join(", ")}`
+        : "Invalid recipe name."
 
-      return NextResponse.json({ nutrition: output })
+    // Keep FSSAI fields for compatibility/history data
+    const fssaiCompliant = !hasUnknownIngredients && nutritionResult.sodium < 500
+    
+    const fssaiNotes = hasUnknownIngredients
+      ? `Could not verify some ingredients: ${nutritionResult.unknownIngredients.join(", ")}. Please verify FSSAI compliance manually.`
+      : "Recipe appears FSSAI compliant with basic ingredients. Verify final product meets all regulations."
 
-    } catch (aiError) {
-      console.warn("AI failed, using local database:", aiError)
-      const nutrition = calculateNutrition(ingredients, servingSize || 100)
-      return NextResponse.json({ nutrition })
+    const result = {
+      calories: nutritionResult.calories,
+      protein: nutritionResult.protein,
+      fat: nutritionResult.fat,
+      saturatedFat: nutritionResult.saturatedFat,
+      carbohydrates: nutritionResult.carbohydrates,
+      sugar: nutritionResult.sugar,
+      sodium: nutritionResult.sodium,
+      fiber: nutritionResult.fiber,
+      validInput,
+      invalidIngredients: nutritionResult.unknownIngredients,
+      validationMessage,
+      fssaiCompliant,
+      fssaiNotes,
     }
-  } catch (error) {
-    console.error("Nutrition analysis error:", error)
 
+    console.log("Final result:", result)
+    return NextResponse.json({ nutrition: result })
+  } catch (error) {
+    console.error("AI Analysis Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json(
-      { error: "Failed to analyze nutrition" },
+      { 
+        error: `Failed to analyze recipe: ${errorMessage}`
+      },
       { status: 500 }
     )
   }

@@ -43,27 +43,27 @@ export function GoalSelector({ selected, onSelect }: GoalSelectorProps) {
           <button
             key={goal.value}
             onClick={() => onSelect(goal.value)}
-            className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
+            className={`flex flex-col items-center gap-2 rounded-xl border p-4 backdrop-blur-md transition-all ${
               isActive
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-border bg-card hover:border-primary/40"
+                ? "border-white/35 bg-white/20 text-white shadow-sm"
+                : "border-white/20 bg-white/10 text-slate-100 hover:border-white/35 hover:bg-white/15"
             }`}
           >
             <div
               className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                isActive ? "bg-white/30 text-white" : "bg-white/15 text-slate-200"
               }`}
             >
               <goal.icon className="h-5 w-5" />
             </div>
             <span
               className={`text-sm font-medium ${
-                isActive ? "text-primary" : "text-card-foreground"
+                isActive ? "text-white" : "text-slate-100"
               }`}
             >
               {goal.label}
             </span>
-            <span className="text-xs text-muted-foreground text-center">
+            <span className="text-xs text-slate-300 text-center">
               {goal.description}
             </span>
           </button>
