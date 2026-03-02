@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
@@ -72,6 +72,17 @@ export default function ManufacturerDashboard() {
     ingredients: Ingredient[]
   } | null>(null)
 
+  useEffect(() => {
+    if (isLoading) return
+    if (!user) {
+      router.push("/auth")
+      return
+    }
+    if (user.role !== "manufacturer") {
+      router.push("/dashboard/user")
+    }
+  }, [isLoading, user, router])
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -80,13 +91,7 @@ export default function ManufacturerDashboard() {
     )
   }
 
-  if (!user) {
-    router.push("/auth")
-    return null
-  }
-
-  if (user.role !== "manufacturer") {
-    router.push("/dashboard/user")
+  if (!user || user.role !== "manufacturer") {
     return null
   }
 
