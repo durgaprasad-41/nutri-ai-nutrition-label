@@ -236,6 +236,12 @@ export default function RecommendationsPage() {
   const userId = user?.id ?? null
 
   useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/auth")
+    }
+  }, [isLoading, user, router])
+
+  useEffect(() => {
     if (!userId) return
 
     let active = true
@@ -375,7 +381,6 @@ export default function RecommendationsPage() {
   }
 
   if (!user) {
-    router.push("/auth")
     return null
   }
 
