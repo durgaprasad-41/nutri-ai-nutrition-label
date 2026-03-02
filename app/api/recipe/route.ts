@@ -1,101 +1,47 @@
-import { NextRequest, NextResponse } from "next/server"
-import { connectToDatabase } from "@/lib/mongodb"
-import { getAuthUser } from "@/lib/auth"
-import Recipe from "@/models/Recipe"
+import { NextResponse } from "next/server";
+import { generateText } from "ai";
+import { google } from "@ai-sdk/google";
 
-const HISTORY_RETENTION_DAYS = 30
-
-type RecipeRequestBody = {
-  name: string
-  servingSize?: number
-  ingredients: unknown[]
-  nutrition?: unknown
-  fssaiCompliant?: boolean | null
-  goalAnalysis?: unknown
-  improvedRecipe?: unknown
-}
-
-function getRetentionCutoffDate() {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - HISTORY_RETENTION_DAYS)
-  return cutoff
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const auth = await getAuthUser()
-    if (!auth) {
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      )
+        { error: "API key not configured" },
+        { status: 500 }
+      );
     }
 
-    await connectToDatabase()
+    const body = await req.json();
+    const { recipeName, servingSize, ingredients } = body;
 
-    const body = (await req.json()) as RecipeRequestBody
-    const cutoffDate = getRetentionCutoffDate()
+    const { text } = await generateText({
+      model: google("gemini-1.5-flash"),
+      prompt: `
+        Calculate nutrition values for this recipe:
 
-    const recipe = await Recipe.create({
-      userId: auth.userId,
-      name: body.name,
-      servingSize: body.servingSize || 100,
-      ingredients: body.ingredients,
-      nutrition: body.nutrition || null,
-      fssaiCompliant: body.fssaiCompliant ?? null,
-      goalAnalysis: body.goalAnalysis || null,
-      improvedRecipe: body.improvedRecipe || null,
-    })
+        Recipe Name: ${recipeName}
+        Serving Size: ${servingSize}g
+        Ingredients: ${JSON.stringify(ingredients)}
 
-    // Enforce rolling 30-day history retention per user.
-    await Recipe.deleteMany({
-      userId: auth.userId,
-      createdAt: { $lt: cutoffDate },
-    })
+        Return ONLY valid JSON in this format:
+        {
+          "calories": number,
+          "protein": number,
+          "fat": number,
+          "saturatedFat": number,
+          "carbohydrates": number,
+          "sugar": number
+        }
+      `,
+    });
 
-    return NextResponse.json({ recipe }, { status: 201 })
+    return NextResponse.json({ result: text });
+
   } catch (error) {
-    console.error("Save recipe error:", error)
+    console.error(error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to analyze recipe" },
       { status: 500 }
-    )
-  }
-}
-
-export async function GET() {
-  try {
-    const auth = await getAuthUser()
-    if (!auth) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      )
-    }
-
-    await connectToDatabase()
-    const cutoffDate = getRetentionCutoffDate()
-
-    // Clean up old history before fetching.
-    await Recipe.deleteMany({
-      userId: auth.userId,
-      createdAt: { $lt: cutoffDate },
-    })
-
-    const recipes = await Recipe.find({
-      userId: auth.userId,
-      createdAt: { $gte: cutoffDate },
-    })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean()
-
-    return NextResponse.json({ recipes })
-  } catch (error) {
-    console.error("Get recipes error:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    );
   }
 }
