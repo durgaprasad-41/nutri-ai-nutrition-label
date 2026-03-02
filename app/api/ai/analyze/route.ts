@@ -1,23 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
 import { connectToDatabase } from "@/lib/mongodb"
 import { calculateRecipeNutritionFromFssai } from "@/lib/fssai-nutrition"
-
-const nutritionSchema = z.object({
-  calories: z.number(),
-  protein: z.number(),
-  fat: z.number(),
-  saturatedFat: z.number(),
-  carbohydrates: z.number(),
-  sugar: z.number(),
-  sodium: z.number(),
-  fiber: z.number(),
-  validInput: z.boolean(),
-  invalidIngredients: z.array(z.string()),
-  validationMessage: z.string(),
-  fssaiCompliant: z.boolean(),
-  fssaiNotes: z.string(),
-})
 
 export async function POST(req: NextRequest) {
   try {

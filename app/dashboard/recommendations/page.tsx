@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { CalendarDays, ClipboardList, Loader2, Search, RotateCcw } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
 import { useAuth } from "@/hooks/use-auth"
@@ -232,9 +233,10 @@ export default function RecommendationsPage() {
   const [likedIngredientInput, setLikedIngredientInput] = useState("")
   const [likedIngredients, setLikedIngredients] = useState<string[]>([])
   const [searchApplied, setSearchApplied] = useState(false)
+  const userId = user?.id ?? null
 
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
 
     let active = true
     const loadHistoryIngredients = async () => {
@@ -283,7 +285,7 @@ export default function RecommendationsPage() {
     return () => {
       active = false
     }
-  }, [user?.id])
+  }, [userId])
 
   const goalRecipes = useMemo(() => {
     if (!selectedGoal) return []
@@ -506,9 +508,11 @@ export default function RecommendationsPage() {
                       selected ? "text-cyan-200" : "text-slate-100"
                     }`}
                   >
-                    <img
+                    <Image
                       src={recipe.imageUrl}
                       alt={recipe.name}
+                      width={80}
+                      height={56}
                       loading="lazy"
                       referrerPolicy="no-referrer"
                       data-fallback-src={recipe.fallbackImageUrl}
@@ -540,9 +544,11 @@ export default function RecommendationsPage() {
             {selectedRecipe && (
               <div className="space-y-6">
                 <div>
-                  <img
+                  <Image
                     src={selectedRecipe.imageUrl}
                     alt={selectedRecipe.name}
+                    width={1200}
+                    height={480}
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     data-fallback-src={selectedRecipe.fallbackImageUrl}

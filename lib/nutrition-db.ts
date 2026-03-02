@@ -205,8 +205,7 @@ function findIngredient(name: string): NutrientValues | null {
 }
 
 export function calculateNutrition(
-    ingredients: { name: string; quantity: number; unit: string }[],
-    servingSize: number
+    ingredients: { name: string; quantity: number; unit: string }[]
 ): {
     calories: number
     protein: number
